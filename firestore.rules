@@ -1,0 +1,411 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net (Default Deny Catch-All)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Core Primitives
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isEmailVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isAdmin() {
+      return isSignedIn() && isEmailVerified() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        request.auth.token.email == 'xdonaldsiduko@gmail.com'
+      );
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && isEmailVerified() && request.auth.uid == userId;
+    }
+
+    function isPracticeOwner(practiceId) {
+      return isSignedIn() && isEmailVerified() &&
+             exists(/databases/$(database)/documents/practices/$(practiceId)) &&
+             get(/databases/$(database)/documents/practices/$(practiceId)).data.ownerUid == request.auth.uid;
+    }
+
+    // Validation Blueprints (No existing() or diff() calls allowed inside)
+    function isValidUserPrivateProfile(data) {
+      return data.keys().hasAll(['uid', 'email', 'displayName', 'createdAt', 'updatedAt']) &&
+             data.keys().hasOnly(['uid', 'email', 'displayName', 'photoURL', 'createdAt', 'updatedAt']) &&
+             isValidId(data.uid) &&
+             data.uid == request.auth.uid &&
+             data.email is string && data.email.size() > 0 && data.email.size() <= 120 &&
+             data.displayName is string && data.displayName.size() > 0 && data.displayName.size() <= 100 &&
+             (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() <= 500)) &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp;
+    }
+
+    function isValidPractice(data) {
+      return data.keys().hasAll([
+               'id', 'practiceName', 'professionType', 'ownerUid', 'adminEmail',
+               'ficaOfficerName', 'retentionPolicyDays', 'city', 'province', 'tagline',
+               'createdAt', 'updatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'id', 'practiceName', 'professionType', 'ownerUid', 'adminEmail',
+               'ficaOfficerName', 'retentionPolicyDays', 'city', 'province', 'tagline',
+               'createdAt', 'updatedAt'
+             ]) &&
+             isValidId(data.id) &&
+             data.practiceName is string && data.practiceName.size() >= 1 && data.practiceName.size() <= 100 &&
+             data.professionType in ['law_firm', 'accounting_firm', 'consulting_firm'] &&
+             isValidId(data.ownerUid) &&
+             data.adminEmail is string && data.adminEmail.size() > 0 && data.adminEmail.size() <= 120 &&
+             data.ficaOfficerName is string && data.ficaOfficerName.size() >= 1 && data.ficaOfficerName.size() <= 100 &&
+             data.retentionPolicyDays is number && data.retentionPolicyDays >= 365 && data.retentionPolicyDays <= 3650 &&
+             data.city is string && data.city.size() <= 80 &&
+             data.province is string && data.province.size() <= 80 &&
+             data.tagline is string && data.tagline.size() <= 200 &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp;
+    }
+
+    function isValidClientIntake(data) {
+      return data.keys().hasAll([
+               'id', 'practiceId', 'ownerUid', 'clientEmail', 'clientName', 'clientType',
+               'phone', 'idNumber', 'status', 'popiaConsent', 'currentStep',
+               'magicLinkToken', 'riskRating', 'openedAt', 'createdAt', 'updatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'id', 'practiceId', 'ownerUid', 'clientEmail', 'clientName', 'clientType',
+               'phone', 'idNumber', 'companyName', 'registrationNumber', 'taxNumber',
+               'status', 'popiaConsent', 'popiaConsentDate', 'currentStep',
+               'magicLinkToken', 'riskRating', 'riskReasons', 'openedAt', 'createdAt', 'updatedAt'
+             ]) &&
+             isValidId(data.id) &&
+             isValidId(data.practiceId) &&
+             isValidId(data.ownerUid) &&
+             data.clientEmail is string && data.clientEmail.size() > 0 && data.clientEmail.size() <= 120 &&
+             data.clientName is string && data.clientName.size() >= 1 && data.clientName.size() <= 100 &&
+             data.clientType in ['individual', 'company', 'trust'] &&
+             data.phone is string && data.phone.size() <= 30 &&
+             data.idNumber is string && data.idNumber.size() <= 30 &&
+             (!('companyName' in data) || (data.companyName is string && data.companyName.size() <= 120)) &&
+             (!('registrationNumber' in data) || (data.registrationNumber is string && data.registrationNumber.size() <= 40)) &&
+             (!('taxNumber' in data) || (data.taxNumber is string && data.taxNumber.size() <= 40)) &&
+             data.status in ['draft', 'submitted', 'ai_verified', 'needs_review', 'approved', 'rejected'] &&
+             data.popiaConsent is bool &&
+             (!('popiaConsentDate' in data) || (data.popiaConsentDate is string && data.popiaConsentDate.size() <= 64)) &&
+             data.currentStep is number && data.currentStep >= 1 && data.currentStep <= 5 &&
+             data.magicLinkToken is string && data.magicLinkToken.size() <= 128 &&
+             data.riskRating in ['low', 'medium', 'high'] &&
+             (!('riskReasons' in data) || (
+               data.riskReasons is list &&
+               data.riskReasons.size() <= 10 &&
+               (data.riskReasons.size() == 0 || (data.riskReasons[0] is string && data.riskReasons[0].size() <= 200))
+             )) &&
+             data.openedAt is string && data.openedAt.size() <= 64 &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp;
+    }
+
+    function isValidVerificationDocument(data) {
+      return data.keys().hasAll([
+               'id', 'practiceId', 'intakeId', 'ownerUid', 'docType', 'fileName',
+               'fileSize', 'fileMime', 'status', 'aiConfidence', 'aiValidationSummary',
+               'uploadedAt', 'createdAt', 'updatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'id', 'practiceId', 'intakeId', 'ownerUid', 'docType', 'fileName',
+               'fileSize', 'fileMime', 'status', 'aiConfidence', 'aiValidationSummary',
+               'issueDate', 'expiryDate', 'extractedData', 'uploadedAt', 'createdAt', 'updatedAt'
+             ]) &&
+             isValidId(data.id) &&
+             isValidId(data.practiceId) &&
+             isValidId(data.intakeId) &&
+             isValidId(data.ownerUid) &&
+             data.docType in ['sa_id', 'proof_of_residence', 'company_registration', 'tax_clearance'] &&
+             data.fileName is string && data.fileName.size() >= 1 && data.fileName.size() <= 128 &&
+             data.fileSize is number && data.fileSize >= 0 && data.fileSize <= 52428800 &&
+             data.fileMime is string && data.fileMime.size() >= 1 && data.fileMime.size() <= 64 &&
+             data.status in ['pending', 'valid', 'flagged', 'rejected'] &&
+             data.aiConfidence is number && data.aiConfidence >= 0 && data.aiConfidence <= 1 &&
+             data.aiValidationSummary is string && data.aiValidationSummary.size() <= 1000 &&
+             (!('issueDate' in data) || (data.issueDate is string && data.issueDate.size() <= 32)) &&
+             (!('expiryDate' in data) || (data.expiryDate is string && data.expiryDate.size() <= 32)) &&
+             (!('extractedData' in data) || (data.extractedData is map && data.extractedData.keys().size() <= 16)) &&
+             data.uploadedAt is string && data.uploadedAt.size() <= 64 &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp;
+    }
+
+    function isValidAuditLog(data) {
+      return data.keys().hasAll([
+               'id', 'practiceId', 'ownerUid', 'intakeId', 'action', 'performedBy',
+               'ipAddress', 'userAgent', 'popiaLawfulBasis', 'hash', 'timestamp', 'createdAt'
+             ]) &&
+             data.keys().hasOnly([
+               'id', 'practiceId', 'ownerUid', 'intakeId', 'action', 'performedBy',
+               'ipAddress', 'userAgent', 'popiaLawfulBasis', 'hash', 'timestamp', 'createdAt'
+             ]) &&
+             isValidId(data.id) &&
+             isValidId(data.practiceId) &&
+             isValidId(data.ownerUid) &&
+             data.intakeId is string && data.intakeId.size() >= 1 && data.intakeId.size() <= 128 &&
+             data.action is string && data.action.size() >= 1 && data.action.size() <= 64 &&
+             data.performedBy is string && data.performedBy.size() >= 1 && data.performedBy.size() <= 120 &&
+             data.ipAddress is string && data.ipAddress.size() <= 64 &&
+             data.userAgent is string && data.userAgent.size() <= 240 &&
+             data.popiaLawfulBasis is string && data.popiaLawfulBasis.size() <= 300 &&
+             data.hash is string && data.hash.size() <= 128 &&
+             data.timestamp is string && data.timestamp.size() <= 64 &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidOfficerReminderWorkflow(data) {
+      return data.keys().hasAll([
+               'id', 'practiceId', 'intakeId', 'ownerUid', 'clientName', 'clientEmail',
+               'officerEmail', 'status', 'leadDaysBeforeExpiry', 'expiryDateIso',
+               'targetNotifyDateIso', 'outstandingSummary', 'dailyReminderActive',
+               'channelsSynced', 'automatedAt', 'createdAt', 'updatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'id', 'practiceId', 'intakeId', 'ownerUid', 'clientName', 'clientEmail',
+               'officerEmail', 'status', 'leadDaysBeforeExpiry', 'expiryDateIso',
+               'targetNotifyDateIso', 'outstandingSummary', 'dailyReminderActive',
+               'lastDailyNagDate', 'channelsSynced', 'googleEventId', 'googleTaskId',
+               'msEventId', 'msTaskListId', 'msTaskId', 'automatedAt',
+               'reminderSentAt', 'clientRespondedAt', 'createdAt', 'updatedAt'
+             ]) &&
+             isValidId(data.id) &&
+             isValidId(data.practiceId) &&
+             isValidId(data.intakeId) &&
+             isValidId(data.ownerUid) &&
+             data.clientName is string && data.clientName.size() >= 1 && data.clientName.size() <= 100 &&
+             data.clientEmail is string && data.clientEmail.size() >= 1 && data.clientEmail.size() <= 120 &&
+             data.officerEmail is string && data.officerEmail.size() >= 1 && data.officerEmail.size() <= 120 &&
+             data.status in ['scheduled', 'daily_pending', 'reminder_sent', 'client_responded'] &&
+             data.leadDaysBeforeExpiry is number && data.leadDaysBeforeExpiry >= 1 && data.leadDaysBeforeExpiry <= 7 &&
+             data.expiryDateIso is string && data.expiryDateIso.size() <= 64 &&
+             data.targetNotifyDateIso is string && data.targetNotifyDateIso.size() <= 64 &&
+             data.outstandingSummary is string && data.outstandingSummary.size() <= 600 &&
+             data.dailyReminderActive is bool &&
+             (!('lastDailyNagDate' in data) || (data.lastDailyNagDate is string && data.lastDailyNagDate.size() <= 32)) &&
+             data.channelsSynced is string && data.channelsSynced.size() <= 200 &&
+             (!('googleEventId' in data) || (data.googleEventId is string && data.googleEventId.size() <= 160)) &&
+             (!('googleTaskId' in data) || (data.googleTaskId is string && data.googleTaskId.size() <= 160)) &&
+             (!('msEventId' in data) || (data.msEventId is string && data.msEventId.size() <= 200)) &&
+             (!('msTaskListId' in data) || (data.msTaskListId is string && data.msTaskListId.size() <= 200)) &&
+             (!('msTaskId' in data) || (data.msTaskId is string && data.msTaskId.size() <= 200)) &&
+             data.automatedAt is string && data.automatedAt.size() <= 64 &&
+             (!('reminderSentAt' in data) || (data.reminderSentAt is string && data.reminderSentAt.size() <= 64)) &&
+             (!('clientRespondedAt' in data) || (data.clientRespondedAt is string && data.clientRespondedAt.size() <= 64)) &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp;
+    }
+
+    // Isolated Private User Profiles (PII Segregation)
+    match /users/{userId}/private/{docId} {
+      allow get: if isOwner(userId) && isValidId(userId) && docId == 'profile';
+      allow list: if isOwner(userId) && isValidId(userId) && resource.data.uid == request.auth.uid;
+      allow create: if isOwner(userId) && isValidId(userId) && docId == 'profile' &&
+                       isValidUserPrivateProfile(incoming()) &&
+                       incoming().createdAt == request.time &&
+                       incoming().updatedAt == request.time;
+      allow update: if isOwner(userId) && isValidId(userId) && docId == 'profile' &&
+                       isValidUserPrivateProfile(incoming()) &&
+                       incoming().uid == existing().uid &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().updatedAt == request.time &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['email', 'displayName', 'photoURL', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    // Trusted Admin Markers (Non-client-writable)
+    match /admins/{userId} {
+      allow get: if isSignedIn() && isEmailVerified() && isValidId(userId) && request.auth.uid == userId;
+      allow list, create, update, delete: if false;
+    }
+
+    // Practices Collection
+    match /practices/{practiceId} {
+      allow get: if isSignedIn() && isEmailVerified() && isValidId(practiceId) &&
+                    (existing().ownerUid == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && isEmailVerified() && resource.data.ownerUid == request.auth.uid;
+      allow create: if isSignedIn() && isEmailVerified() && isValidId(practiceId) &&
+                       isValidPractice(incoming()) &&
+                       incoming().id == practiceId &&
+                       incoming().ownerUid == request.auth.uid &&
+                       incoming().createdAt == request.time &&
+                       incoming().updatedAt == request.time;
+      allow update: if isSignedIn() && isEmailVerified() && isValidId(practiceId) &&
+                       isValidPractice(incoming()) &&
+                       (existing().ownerUid == request.auth.uid || isAdmin()) &&
+                       incoming().id == existing().id &&
+                       incoming().ownerUid == existing().ownerUid &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().updatedAt == request.time &&
+                       (
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'practiceName', 'adminEmail', 'ficaOfficerName', 'retentionPolicyDays',
+                           'city', 'province', 'tagline', 'updatedAt'
+                         ]) ||
+                         isAdmin()
+                       );
+      allow delete: if isSignedIn() && isEmailVerified() && isValidId(practiceId) &&
+                       (existing().ownerUid == request.auth.uid || isAdmin());
+
+      // Client Intakes Subcollection
+      match /intakes/{intakeId} {
+        allow get: if isSignedIn() && isEmailVerified() && isValidId(practiceId) && isValidId(intakeId) && (
+          isPracticeOwner(practiceId) ||
+          existing().clientEmail == request.auth.token.email ||
+          isAdmin()
+        );
+        allow list: if isSignedIn() && isEmailVerified() && (
+          resource.data.ownerUid == request.auth.uid ||
+          resource.data.clientEmail == request.auth.token.email
+        );
+        allow create: if isSignedIn() && isEmailVerified() && isValidId(practiceId) && isValidId(intakeId) &&
+                         isValidClientIntake(incoming()) &&
+                         isPracticeOwner(practiceId) &&
+                         incoming().id == intakeId &&
+                         incoming().practiceId == practiceId &&
+                         incoming().ownerUid == request.auth.uid &&
+                         incoming().createdAt == request.time &&
+                         incoming().updatedAt == request.time;
+        allow update: if isSignedIn() && isEmailVerified() && isValidId(practiceId) && isValidId(intakeId) &&
+                         isValidClientIntake(incoming()) &&
+                         incoming().id == existing().id &&
+                         incoming().practiceId == existing().practiceId &&
+                         incoming().ownerUid == existing().ownerUid &&
+                         incoming().openedAt == existing().openedAt &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().updatedAt == request.time &&
+                         (!(existing().status in ['approved', 'rejected']) || isAdmin()) &&
+                         (
+                           // Action: FICA Officer status update
+                           (isPracticeOwner(practiceId) && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])) ||
+                           // Action: Practice owner full intake update / client portal submission
+                           (isPracticeOwner(practiceId) && incoming().diff(existing()).affectedKeys().hasOnly([
+                             'clientEmail', 'clientName', 'clientType', 'phone', 'idNumber',
+                             'companyName', 'registrationNumber', 'taxNumber', 'status',
+                             'popiaConsent', 'popiaConsentDate', 'currentStep', 'magicLinkToken',
+                             'riskRating', 'riskReasons', 'updatedAt'
+                           ])) ||
+                           // Action: Verified client self-service intake progression
+                           (existing().clientEmail == request.auth.token.email &&
+                            !(incoming().status in ['approved', 'rejected']) &&
+                            incoming().diff(existing()).affectedKeys().hasOnly([
+                              'clientName', 'clientType', 'phone', 'idNumber',
+                              'companyName', 'registrationNumber', 'status',
+                              'popiaConsent', 'popiaConsentDate', 'currentStep',
+                              'magicLinkToken', 'riskRating', 'riskReasons', 'updatedAt'
+                            ])) ||
+                           isAdmin()
+                         );
+        allow delete: if isSignedIn() && isEmailVerified() && isValidId(practiceId) && isValidId(intakeId) &&
+                         (isPracticeOwner(practiceId) || isAdmin());
+
+        // Verification Documents Subcollection
+        match /documents/{docId} {
+          allow get: if isSignedIn() && isEmailVerified() && isValidId(practiceId) && isValidId(intakeId) && isValidId(docId) && (
+            isPracticeOwner(practiceId) ||
+            get(/databases/$(database)/documents/practices/$(practiceId)/intakes/$(intakeId)).data.clientEmail == request.auth.token.email ||
+            isAdmin()
+          );
+          allow list: if isSignedIn() && isEmailVerified() && resource.data.ownerUid == request.auth.uid;
+          allow create: if isSignedIn() && isEmailVerified() && isValidId(practiceId) && isValidId(intakeId) && isValidId(docId) &&
+                           isValidVerificationDocument(incoming()) &&
+                           isPracticeOwner(practiceId) &&
+                           exists(/databases/$(database)/documents/practices/$(practiceId)/intakes/$(intakeId)) &&
+                           incoming().id == docId &&
+                           incoming().practiceId == practiceId &&
+                           incoming().intakeId == intakeId &&
+                           incoming().ownerUid == request.auth.uid &&
+                           incoming().createdAt == request.time &&
+                           incoming().updatedAt == request.time;
+          allow update: if isSignedIn() && isEmailVerified() && isValidId(practiceId) && isValidId(intakeId) && isValidId(docId) &&
+                           isValidVerificationDocument(incoming()) &&
+                           (isPracticeOwner(practiceId) || isAdmin()) &&
+                           incoming().id == existing().id &&
+                           incoming().practiceId == existing().practiceId &&
+                           incoming().intakeId == existing().intakeId &&
+                           incoming().ownerUid == existing().ownerUid &&
+                           incoming().createdAt == existing().createdAt &&
+                           incoming().updatedAt == request.time &&
+                           incoming().diff(existing()).affectedKeys().hasOnly([
+                             'fileName', 'fileSize', 'fileMime', 'status', 'aiConfidence',
+                             'aiValidationSummary', 'issueDate', 'expiryDate', 'extractedData',
+                             'uploadedAt', 'updatedAt'
+                           ]);
+          allow delete: if isSignedIn() && isEmailVerified() && isValidId(practiceId) && isValidId(intakeId) && isValidId(docId) &&
+                           (isPracticeOwner(practiceId) || isAdmin());
+        }
+      }
+
+      // Immutable POPIA Section 19 Audit Logs Subcollection (Practice-scoped)
+      match /auditLogs/{logId} {
+        allow get: if isSignedIn() && isEmailVerified() && isValidId(practiceId) && isValidId(logId) &&
+                      (isPracticeOwner(practiceId) || isAdmin());
+        allow list: if isSignedIn() && isEmailVerified() && resource.data.ownerUid == request.auth.uid;
+        allow create: if isSignedIn() && isEmailVerified() && isValidId(practiceId) && isValidId(logId) &&
+                         isValidAuditLog(incoming()) &&
+                         isPracticeOwner(practiceId) &&
+                         incoming().id == logId &&
+                         incoming().practiceId == practiceId &&
+                         incoming().ownerUid == request.auth.uid &&
+                         incoming().createdAt == request.time;
+        allow update, delete: if false;
+      }
+
+      // Automated Pre-Expiry Officer Workflows & Date-Stamped Response Tracking
+      match /reminderWorkflows/{workflowId} {
+        allow get: if isSignedIn() && isEmailVerified() && isValidId(practiceId) && isValidId(workflowId) &&
+                      (isPracticeOwner(practiceId) || isAdmin());
+        allow list: if isSignedIn() && isEmailVerified() && resource.data.ownerUid == request.auth.uid;
+        allow create: if isSignedIn() && isEmailVerified() && isValidId(practiceId) && isValidId(workflowId) &&
+                         isValidOfficerReminderWorkflow(incoming()) &&
+                         isPracticeOwner(practiceId) &&
+                         exists(/databases/$(database)/documents/practices/$(practiceId)/intakes/$(incoming().intakeId)) &&
+                         incoming().id == workflowId &&
+                         incoming().practiceId == practiceId &&
+                         incoming().ownerUid == request.auth.uid &&
+                         incoming().createdAt == request.time &&
+                         incoming().updatedAt == request.time;
+        allow update: if isSignedIn() && isEmailVerified() && isValidId(practiceId) && isValidId(workflowId) &&
+                         isValidOfficerReminderWorkflow(incoming()) &&
+                         (isPracticeOwner(practiceId) || isAdmin()) &&
+                         incoming().id == existing().id &&
+                         incoming().practiceId == existing().practiceId &&
+                         incoming().intakeId == existing().intakeId &&
+                         incoming().ownerUid == existing().ownerUid &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().updatedAt == request.time &&
+                         (
+                           incoming().diff(existing()).affectedKeys().hasOnly([
+                             'status', 'dailyReminderActive', 'lastDailyNagDate', 'channelsSynced',
+                             'googleEventId', 'googleTaskId', 'msEventId', 'msTaskListId', 'msTaskId',
+                             'reminderSentAt', 'clientRespondedAt', 'outstandingSummary', 'updatedAt'
+                           ]) ||
+                           isAdmin()
+                         );
+        allow delete: if isSignedIn() && isEmailVerified() && isValidId(practiceId) && isValidId(workflowId) &&
+                         (isPracticeOwner(practiceId) || isAdmin());
+      }
+    }
+  }
+}

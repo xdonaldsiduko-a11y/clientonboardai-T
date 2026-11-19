@@ -1,0 +1,6 @@
+{
+  "name": "ClientOnboard AI",
+  "description": "Secure, mobile-first client intake, POPIA-compliant FICA document verification and audit portal for South African professional practices.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,247 @@
+{
+  "entities": {
+    "UserPrivateProfile": {
+      "title": "UserPrivateProfile",
+      "description": "Private PII profile for authenticated practice officers stored under their UID.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "email": { "type": "string", "maxLength": 120 },
+        "displayName": { "type": "string", "maxLength": 100 },
+        "photoURL": { "type": "string", "maxLength": 500 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "displayName", "createdAt", "updatedAt"]
+    },
+    "PracticeProfile": {
+      "title": "PracticeProfile",
+      "description": "Professional practice firm details (attorneys, chartered accountants, consultants) managing FICA compliance.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "practiceName": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "professionType": { "type": "string", "enum": ["law_firm", "accounting_firm", "consulting_firm"] },
+        "ownerUid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "adminEmail": { "type": "string", "maxLength": 120 },
+        "ficaOfficerName": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "retentionPolicyDays": { "type": "number" },
+        "city": { "type": "string", "maxLength": 80 },
+        "province": { "type": "string", "maxLength": 80 },
+        "tagline": { "type": "string", "maxLength": 200 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id",
+        "practiceName",
+        "professionType",
+        "ownerUid",
+        "adminEmail",
+        "ficaOfficerName",
+        "retentionPolicyDays",
+        "city",
+        "province",
+        "tagline",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "ClientIntake": {
+      "title": "ClientIntake",
+      "description": "South African client onboarding intake case file with FICA and POPIA status tracking.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "practiceId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerUid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "clientEmail": { "type": "string", "maxLength": 120 },
+        "clientName": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "clientType": { "type": "string", "enum": ["individual", "company", "trust"] },
+        "phone": { "type": "string", "maxLength": 30 },
+        "idNumber": { "type": "string", "maxLength": 30 },
+        "companyName": { "type": "string", "maxLength": 120 },
+        "registrationNumber": { "type": "string", "maxLength": 40 },
+        "taxNumber": { "type": "string", "maxLength": 40 },
+        "status": { "type": "string", "enum": ["draft", "submitted", "ai_verified", "needs_review", "approved", "rejected"] },
+        "popiaConsent": { "type": "boolean" },
+        "popiaConsentDate": { "type": "string", "maxLength": 64 },
+        "currentStep": { "type": "number" },
+        "magicLinkToken": { "type": "string", "maxLength": 128 },
+        "riskRating": { "type": "string", "enum": ["low", "medium", "high"] },
+        "riskReasons": { "type": "array", "description": "Bounded up to 10 short compliance reasons." },
+        "openedAt": { "type": "string", "maxLength": 64 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id",
+        "practiceId",
+        "ownerUid",
+        "clientEmail",
+        "clientName",
+        "clientType",
+        "phone",
+        "idNumber",
+        "status",
+        "popiaConsent",
+        "currentStep",
+        "magicLinkToken",
+        "riskRating",
+        "openedAt",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "VerificationDocument": {
+      "title": "VerificationDocument",
+      "description": "FICA compliance uploaded document metadata and AI validation output.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "practiceId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "intakeId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerUid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "docType": { "type": "string", "enum": ["sa_id", "proof_of_residence", "company_registration", "tax_clearance"] },
+        "fileName": { "type": "string", "maxLength": 128 },
+        "fileSize": { "type": "number" },
+        "fileMime": { "type": "string", "maxLength": 64 },
+        "status": { "type": "string", "enum": ["pending", "valid", "flagged", "rejected"] },
+        "aiConfidence": { "type": "number" },
+        "aiValidationSummary": { "type": "string", "maxLength": 1000 },
+        "issueDate": { "type": "string", "maxLength": 32 },
+        "expiryDate": { "type": "string", "maxLength": 32 },
+        "extractedData": { "type": "object", "description": "Structured FICA metadata extracted from document." },
+        "uploadedAt": { "type": "string", "maxLength": 64 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id",
+        "practiceId",
+        "intakeId",
+        "ownerUid",
+        "docType",
+        "fileName",
+        "fileSize",
+        "fileMime",
+        "status",
+        "aiConfidence",
+        "aiValidationSummary",
+        "uploadedAt",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Immutable POPIA Section 19 compliance audit entry.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "practiceId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerUid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "intakeId": { "type": "string", "maxLength": 128 },
+        "action": { "type": "string", "maxLength": 64 },
+        "performedBy": { "type": "string", "maxLength": 120 },
+        "ipAddress": { "type": "string", "maxLength": 64 },
+        "userAgent": { "type": "string", "maxLength": 240 },
+        "popiaLawfulBasis": { "type": "string", "maxLength": 300 },
+        "hash": { "type": "string", "maxLength": 128 },
+        "timestamp": { "type": "string", "maxLength": 64 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id",
+        "practiceId",
+        "ownerUid",
+        "intakeId",
+        "action",
+        "performedBy",
+        "ipAddress",
+        "userAgent",
+        "popiaLawfulBasis",
+        "hash",
+        "timestamp",
+        "createdAt"
+      ]
+    },
+    "OfficerReminderWorkflow": {
+      "title": "OfficerReminderWorkflow",
+      "description": "Automated pre-expiry officer alert, daily Calendar/Tasks reminder tracking, and automatic reminder-sent / client-responded timestamps.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "practiceId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "intakeId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerUid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "clientName": { "type": "string", "maxLength": 100 },
+        "clientEmail": { "type": "string", "maxLength": 120 },
+        "officerEmail": { "type": "string", "maxLength": 120 },
+        "status": { "type": "string", "enum": ["scheduled", "daily_pending", "reminder_sent", "client_responded"] },
+        "leadDaysBeforeExpiry": { "type": "number" },
+        "expiryDateIso": { "type": "string", "maxLength": 64 },
+        "targetNotifyDateIso": { "type": "string", "maxLength": 64 },
+        "outstandingSummary": { "type": "string", "maxLength": 600 },
+        "dailyReminderActive": { "type": "boolean" },
+        "lastDailyNagDate": { "type": "string", "maxLength": 32 },
+        "channelsSynced": { "type": "string", "maxLength": 200 },
+        "googleEventId": { "type": "string", "maxLength": 160 },
+        "googleTaskId": { "type": "string", "maxLength": 160 },
+        "msEventId": { "type": "string", "maxLength": 200 },
+        "msTaskListId": { "type": "string", "maxLength": 200 },
+        "msTaskId": { "type": "string", "maxLength": 200 },
+        "automatedAt": { "type": "string", "maxLength": 64 },
+        "reminderSentAt": { "type": "string", "maxLength": 64 },
+        "clientRespondedAt": { "type": "string", "maxLength": 64 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id",
+        "practiceId",
+        "intakeId",
+        "ownerUid",
+        "clientName",
+        "clientEmail",
+        "officerEmail",
+        "status",
+        "leadDaysBeforeExpiry",
+        "expiryDateIso",
+        "targetNotifyDateIso",
+        "outstandingSummary",
+        "dailyReminderActive",
+        "channelsSynced",
+        "automatedAt",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/private/{docId}": {
+      "schema": "UserPrivateProfile",
+      "description": "Private PII profile isolated per authenticated Firebase user."
+    },
+    "/practices/{practiceId}": {
+      "schema": "PracticeProfile",
+      "description": "Firms and legal/accounting practices managing client onboarding."
+    },
+    "/practices/{practiceId}/intakes/{intakeId}": {
+      "schema": "ClientIntake",
+      "description": "Client intake dossiers for a specific practice."
+    },
+    "/practices/{practiceId}/intakes/{intakeId}/documents/{docId}": {
+      "schema": "VerificationDocument",
+      "description": "Uploaded FICA identity and address verification documents."
+    },
+    "/practices/{practiceId}/auditLogs/{logId}": {
+      "schema": "AuditLog",
+      "description": "Immutable POPIA Section 19 audit events belonging to a practice."
+    },
+    "/practices/{practiceId}/reminderWorkflows/{workflowId}": {
+      "schema": "OfficerReminderWorkflow",
+      "description": "Automated pre-expiry officer email, Calendar/Tasks sync state, daily nag status, and auto-stamped reminder/client upload dates."
+    }
+  }
+}
